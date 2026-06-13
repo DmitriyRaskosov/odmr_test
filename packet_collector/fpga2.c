@@ -218,13 +218,15 @@ static void print_capture_summary(int sock) {
                 "  analyze groups:     %lu\n"
                 "  analyze pulses:     %lu\n"
                 "  photon buffer:      %zu (peak %zu)\n"
-                "  photons trimmed:    %lu\n",
+                "  photons trimmed:    %lu\n"
+                "  bad pulse windows:  %lu (skipped)\n",
                 g_analyze_output_path[0] ? g_analyze_output_path : "(unknown)",
                 analyze_stream_groups_written(g_analyzer),
                 analyze_stream_pulses_completed(g_analyzer),
                 analyze_stream_photon_buffer_count(g_analyzer),
                 analyze_stream_photon_buffer_peak(g_analyzer),
-                analyze_stream_photons_trimmed(g_analyzer));
+                analyze_stream_photons_trimmed(g_analyzer),
+                analyze_stream_bad_windows_skipped(g_analyzer));
     }
     fflush(stderr);
 }
@@ -307,7 +309,6 @@ static int write_timestamp_lines(
     for (int i = 0; i < ts_count; i++) {
         if (raw_words[i] == 0u) {
             current_offset++;
-            stat_inc(&stat_markers_100ms);
             continue;
         }
 
@@ -403,6 +404,12 @@ void* write_thread(void* arg) {
         uint32_t raw_words[256];
         int ts_count = 0;
         parse_timestamps_raw(pkt.data, raw_timestamps, fronts, raw_words, &ts_count, pkt.channel);
+
+        for (int i = 0; i < ts_count; i++) {
+            if (raw_words[i] == 0u) {
+                stat_inc(&stat_markers_100ms);
+            }
+        }
 
         if (g_analyzer) {
             analyze_stream_feed(

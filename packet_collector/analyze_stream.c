@@ -25,6 +25,7 @@ struct AnalyzeStream {
 
     double pending_trigger_start;
     int has_pending_trigger_start;
+    unsigned long bad_windows_skipped;
 };
 
 static size_t bisect_left(const double* values, size_t begin, size_t count, double value) {
@@ -105,24 +106,13 @@ static void complete_pulse(AnalyzeStream* stream, double start, double end) {
     unsigned long count = 0;
 
     /* Full-list bisect like analyze.py; trim spent photons after a valid window. */
-    if (stream->photon_count > 0 && start < end) {
+    if (stream->photon_count > 0) {
         size_t left = bisect_left(stream->photons, 0, stream->photon_count, start);
         size_t right = bisect_left(stream->photons, 0, stream->photon_count, end);
         if (right > left) {
             count = (unsigned long)(right - left);
         }
         trim_photons_before_index(stream, right);
-    } else if (start >= end) {
-        static int bad_window_logs = 0;
-        if (bad_window_logs < 3) {
-            fprintf(stderr,
-                    "analyze_stream: bad pulse window start=%.9f end=%.9f\n",
-                    start,
-                    end);
-            bad_window_logs++;
-        }
-    }
-
     if (!ensure_pulse_capacity(stream, stream->pulse_count + 1)) {
         fprintf(stderr, "analyze_stream: out of memory for pulse buffer\n");
         return;
@@ -169,10 +159,25 @@ static void write_group_if_ready(AnalyzeStream* stream) {
     }
 }
 
-static void append_trigger(AnalyzeStream* stream, double value) {
+static void append_trigger(AnalyzeStream* stream, double value, int ms_offset) {
     if (!stream->has_pending_trigger_start) {
         stream->pending_trigger_start = value;
         stream->has_pending_trigger_start = 1;
+        return;
+    }
+
+    if (value <= stream->pending_trigger_start) {
+        static int bad_window_logs = 0;
+        stream->bad_windows_skipped++;
+        if (bad_window_logs < 3) {
+            fprintf(stderr,
+                    "analyze_stream: bad pulse window start=%.9f end=%.9f ms_offset=%d (skipped)\n",
+                    stream->pending_trigger_start,
+                    value,
+                    ms_offset);
+            bad_window_logs++;
+        }
+        stream->has_pending_trigger_start = 0;
         return;
     }
 
@@ -248,7 +253,7 @@ void analyze_stream_feed(
         if (channel == stream->config.photon_channel) {
             append_photon(stream, corrected);
         } else if (channel == stream->config.trigger_channel) {
-            append_trigger(stream, corrected);
+            append_trigger(stream, corrected, current_offset);
         }
     }
 
@@ -287,4 +292,8 @@ size_t analyze_stream_photon_buffer_peak(const AnalyzeStream* stream) {
 
 unsigned long analyze_stream_photons_trimmed(const AnalyzeStream* stream) {
     return stream ? stream->photons_trimmed_total : 0;
+}
+
+unsigned long analyze_stream_bad_windows_skipped(const AnalyzeStream* stream) {
+    return stream ? stream->bad_windows_skipped : 0;
 }
