@@ -1,0 +1,7 @@
+run=20260613_134939_compare
+verified=2026-06-13
+cmp=IDENTICAL
+  6376 pulses_grouped.txt
+  6376 pulses_grouped_offline.txt
+ 51000 ch0_0.txt
+ 51000 ch2_0.txt

@@ -2,36 +2,34 @@
 
 UDP packet capture and streaming analyze for lab board (Linux).
 
-Sender for integration tests: https://github.com/DmitriyRaskosov/udp_spammer
+Sender: https://github.com/DmitriyRaskosov/udp_spammer
 
 ## Build
 
-```bash
-git clone https://github.com/DmitriyRaskosov/odmr_test.git ~/odmr
-cd ~/odmr
-rm -rf build
-cmake -S . -B build
-cmake --build build
-```
+    git clone git@github.com:DmitriyRaskosov/odmr_test.git ~/odmr
+    cd ~/odmr && rm -rf build && cmake -S . -B build && cmake --build build
 
-## Capture (streaming analyze)
+## Stream vs offline compare
 
-```bash
-RUN=~/odmr/runs/$(date +%Y%m%d_%H%M%S)
-sudo ~/odmr/build/packet_capture enp0s3 --analyze-stream --output-dir "$RUN" --group-size 2
-```
+VM terminal 1:
 
-Windows sender:
+    cd ~/odmr
+    ./scripts/compare_stream.sh capture
+    sudo chown -R $(id -un):$(id -gn) "$RUN"
+    ./scripts/compare_stream.sh verify "$RUN"
 
-```powershell
-python -u udp_spammer.py --dst-host 192.168.1.9 --odmr-pair --body-mode timestamps --timing fixed --interval 255e-6 --count 200
-```
+Windows terminal 2:
+
+    cd C:\Users\dmitr\Desktop\udp_lab_sim
+    .\scripts\spammer_odmr_compare.ps1 -DstHost 192.168.1.9 -Count 400
+
+Expected: IDENTICAL, ~6376 lines.
+
+## Golden regression (no capture)
+
+    cmp tests/golden/20260613_134939_compare/pulses_grouped.txt tests/golden/20260613_134939_compare/pulses_grouped_offline.txt && echo GOLDEN_OK
 
 ## VM sync from shared folder
 
-```bash
-rsync -av --delete --exclude build/ --exclude runs/ /media/sf_odmr/ ~/odmr/
-bash scripts/ensure_utf8.sh
-```
-
-Channels: ch0 photon, ch2 trigger. See packet_collector/channel_config.h.
+    rsync -av --delete --exclude build/ --exclude runs/ /media/sf_odmr/ ~/odmr/
+    bash scripts/ensure_utf8.sh
