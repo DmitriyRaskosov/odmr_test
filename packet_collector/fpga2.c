@@ -349,6 +349,7 @@ static int write_timestamp_lines(
 
 typedef struct {
     int ms_offsets_analyze[MAX_CHANNELS];
+    int ms_offset_odmr;
     int ms_offsets_raw[MAX_CHANNELS];
     unsigned long packets_since_flush[MAX_CHANNELS];
 } write_thread_ctx_t;
@@ -373,6 +374,11 @@ static void process_ordered_packet(void* ctx, int channel, const unsigned char* 
     }
 
     if (g_analyzer) {
+        int* offset_ptr = &wctx->ms_offsets_analyze[channel];
+        if (channel == g_capture.photon_channel ||
+            channel == g_capture.trigger_channel) {
+            offset_ptr = &wctx->ms_offset_odmr;
+        }
         analyze_stream_feed(
             g_analyzer,
             channel,
@@ -380,7 +386,7 @@ static void process_ordered_packet(void* ctx, int channel, const unsigned char* 
             fronts,
             raw_words,
             ts_count,
-            &wctx->ms_offsets_analyze[channel]
+            offset_ptr
         );
     }
 
