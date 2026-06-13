@@ -113,6 +113,8 @@ static void complete_pulse(AnalyzeStream* stream, double start, double end) {
             count = (unsigned long)(right - left);
         }
         trim_photons_before_index(stream, right);
+    }
+
     if (!ensure_pulse_capacity(stream, stream->pulse_count + 1)) {
         fprintf(stderr, "analyze_stream: out of memory for pulse buffer\n");
         return;
