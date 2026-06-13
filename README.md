@@ -1,6 +1,6 @@
 # odmr_test
 
-UDP packet capture and streaming analyze for lab board (Linux).
+UDP packet capture and online streaming analyze for lab board (Linux).
 
 Sender: https://github.com/DmitriyRaskosov/udp_spammer
 
@@ -9,27 +9,38 @@ Sender: https://github.com/DmitriyRaskosov/udp_spammer
     git clone git@github.com:DmitriyRaskosov/odmr_test.git ~/odmr
     cd ~/odmr && rm -rf build && cmake -S . -B build && cmake --build build
 
-## Stream vs offline compare
+## Production pipeline (stream only)
+
+Online analyze writes `pulses_grouped.txt` under `--output-dir`. No raw ch*.txt, no analyze.py.
 
 VM terminal 1:
 
     cd ~/odmr
-    ./scripts/compare_stream.sh capture
-    sudo chown -R $(id -un):$(id -gn) "$RUN"
-    ./scripts/compare_stream.sh verify "$RUN"
+    ./scripts/run_stream.sh
 
 Windows terminal 2:
 
     cd C:\Users\dmitr\Desktop\udp_lab_sim
     .\scripts\spammer_odmr_compare.ps1 -DstHost 192.168.1.9 -Count 400
 
-Expected: IDENTICAL, ~6376 lines.
+Stop capture with Ctrl+C after spammer finishes. Result: `runs/.../pulses_grouped.txt`.
 
-## Golden regression (no capture)
+Manual capture:
 
-    cmp tests/golden/20260613_134939_compare/pulses_grouped.txt tests/golden/20260613_134939_compare/pulses_grouped_offline.txt && echo GOLDEN_OK
+    RUN=~/odmr/runs/$(date +%Y%m%d_%H%M%S)
+    sudo ~/odmr/build/packet_capture enp0s3 \
+      --analyze-stream --output-dir "$RUN" --group-size 400
+    sudo chown -R $(id -un):$(id -gn) "$RUN"
+
+## Debug / regression (optional)
+
+- `--record-raw` on packet_capture writes ch0/ch2 txt for offline checks
+- `./scripts/verify_offline.sh "$RUN"` runs analyze.py and cmp vs stream
+- Golden: `cmp tests/golden/20260613_134939_compare/pulses_grouped*.txt`
 
 ## VM sync from shared folder
 
     rsync -av --delete --exclude build/ --exclude runs/ /media/sf_odmr/ ~/odmr/
     bash scripts/ensure_utf8.sh
+
+Channels: ch0 photon, ch2 trigger. See packet_collector/channel_config.h.

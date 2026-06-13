@@ -1,17 +1,14 @@
 # Golden compare runs
 
-Reference captures where `pulses_grouped.txt` (stream) matches `analyze.py` offline output.
+Regression reference: stream `pulses_grouped.txt` matched offline analyze.py (debug capture with --record-raw).
 
 ## 20260613_134939_compare
 
-Verified on VM: cmp -> IDENTICAL, 6376 lines each, groups N, 2, 2 with --group-size 2.
+    cmp tests/golden/20260613_134939_compare/pulses_grouped.txt \
+        tests/golden/20260613_134939_compare/pulses_grouped_offline.txt && echo GOLDEN_OK
 
-Quick check after clone:
+Normal production runs do not use analyze.py or raw files.
 
-    cmp tests/golden/20260613_134939_compare/pulses_grouped.txt tests/golden/20260613_134939_compare/pulses_grouped_offline.txt && echo GOLDEN_OK
+Save a new golden grouped output:
 
-## Save a new golden run from VM
-
-    cd ~/odmr
-    ./scripts/save_golden_run.sh ~/odmr/runs/YYYYMMDD_HHMMSS_compare
-    git add tests/golden/
+    ./scripts/save_golden_run.sh ~/odmr/runs/YYYYMMDD_HHMMSS_run
