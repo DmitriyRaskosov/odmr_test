@@ -26,6 +26,10 @@ struct AnalyzeStream {
     double pending_trigger_start;
     int has_pending_trigger_start;
     unsigned long bad_windows_skipped;
+    unsigned long implicit_markers;
+
+    double last_raw_ms[4];
+    int have_last_raw[4];
 };
 
 static size_t bisect_left(const double* values, size_t begin, size_t count, double value) {
@@ -241,13 +245,23 @@ void analyze_stream_feed(
     if (!stream || !timestamps || !raw_words || !ms_offset || count <= 0) {
         return;
     }
+    if (channel < 0 || channel >= 4) {
+        return;
+    }
 
     int current_offset = *ms_offset;
 
     for (int i = 0; i < count; i++) {
         if (raw_words[i] == 0u) {
             current_offset++;
+            stream->have_last_raw[channel] = 0;
             continue;
+        }
+
+        if (stream->have_last_raw[channel] &&
+            timestamps[i] < stream->last_raw_ms[channel]) {
+            current_offset++;
+            stream->implicit_markers++;
         }
 
         double corrected = 100.0 * current_offset + timestamps[i];
@@ -257,6 +271,9 @@ void analyze_stream_feed(
         } else if (channel == stream->config.trigger_channel) {
             append_trigger(stream, corrected, current_offset);
         }
+
+        stream->last_raw_ms[channel] = timestamps[i];
+        stream->have_last_raw[channel] = 1;
     }
 
     *ms_offset = current_offset;
@@ -298,4 +315,8 @@ unsigned long analyze_stream_photons_trimmed(const AnalyzeStream* stream) {
 
 unsigned long analyze_stream_bad_windows_skipped(const AnalyzeStream* stream) {
     return stream ? stream->bad_windows_skipped : 0;
+}
+
+unsigned long analyze_stream_implicit_markers(const AnalyzeStream* stream) {
+    return stream ? stream->implicit_markers : 0;
 }

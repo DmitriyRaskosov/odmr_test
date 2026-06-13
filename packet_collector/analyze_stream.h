@@ -40,6 +40,7 @@ size_t analyze_stream_photon_buffer_count(const AnalyzeStream* stream);
 size_t analyze_stream_photon_buffer_peak(const AnalyzeStream* stream);
 unsigned long analyze_stream_photons_trimmed(const AnalyzeStream* stream);
 unsigned long analyze_stream_bad_windows_skipped(const AnalyzeStream* stream);
+unsigned long analyze_stream_implicit_markers(const AnalyzeStream* stream);
 
 #ifdef __cplusplus
 }

@@ -234,14 +234,16 @@ static void print_capture_summary(int sock) {
                 "  analyze pulses:     %lu\n"
                 "  photon buffer:      %zu (peak %zu)\n"
                 "  photons trimmed:    %lu\n"
-                "  bad pulse windows:  %lu (skipped)\n",
+                "  bad pulse windows:  %lu (skipped)\n"
+                "  implicit markers:   %lu\n",
                 g_analyze_output_path[0] ? g_analyze_output_path : "(unknown)",
                 analyze_stream_groups_written(g_analyzer),
                 analyze_stream_pulses_completed(g_analyzer),
                 analyze_stream_photon_buffer_count(g_analyzer),
                 analyze_stream_photon_buffer_peak(g_analyzer),
                 analyze_stream_photons_trimmed(g_analyzer),
-                analyze_stream_bad_windows_skipped(g_analyzer));
+                analyze_stream_bad_windows_skipped(g_analyzer),
+                analyze_stream_implicit_markers(g_analyzer));
     }
     fflush(stderr);
 }
