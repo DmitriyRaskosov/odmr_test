@@ -44,3 +44,15 @@ Manual capture:
     bash scripts/ensure_utf8.sh
 
 Channels: ch0 photon, ch2 trigger. See packet_collector/channel_config.h.
+## Source encoding (UTF-8)
+
+C sources must be **UTF-8 without BOM**, LF line endings. Some Windows editors
+accidentally save as UTF-16; Linux gcc then fails with implicit declarations.
+
+Before commit or push (especially after editing on Windows):
+
+    python3 scripts/ensure_utf8.py
+    # or: bash scripts/ensure_utf8.sh
+
+If build on VM fails on analyze_stream.h, run ensure_utf8 locally and push again.
+
