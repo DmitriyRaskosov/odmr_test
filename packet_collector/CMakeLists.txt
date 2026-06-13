@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(${PROJECT_NAME} STATIC
     fpga2.c
     analyze_stream.c
+    packet_reorder.c
 )
 
 target_include_directories(${PROJECT_NAME}

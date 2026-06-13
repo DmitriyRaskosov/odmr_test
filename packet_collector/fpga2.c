@@ -19,6 +19,7 @@
 #include "fpga2.h"
 #include "analyze_stream.h"
 #include "channel_config.h"
+#include "packet_reorder.h"
 #define K (long)1024
 #define M (long)1024*K
 
@@ -60,6 +61,10 @@ static Channel_t packet_channel(const unsigned char* packet) {
     return (Channel_t)num;
 }
 
+static uint16_t packet_payload_counter(const unsigned char* packet) {
+    return (uint16_t)(((unsigned)packet[0x2c] << 8) | packet[0x2d]);
+}
+
 typedef struct {
     unsigned char* data;
     int len;
@@ -80,6 +85,9 @@ static volatile unsigned long stat_wrong_len = 0;
 static volatile unsigned long stat_write_errors = 0;
 static volatile unsigned long stat_markers_100ms = 0;
 static volatile unsigned long stat_kernel_drops_total = 0;
+static unsigned long stat_reorder_late_drops = 0;
+static unsigned long stat_reorder_pending_peak = 0;
+static unsigned long stat_reorder_overflow = 0;
 
 static void stat_inc(volatile unsigned long* counter) {
     __sync_fetch_and_add(counter, 1);
@@ -214,6 +222,13 @@ static void print_capture_summary(int sock) {
             stat_kernel_drops_total);
     if (g_analyzer) {
         fprintf(stderr,
+                "  reorder pending peak: %lu\n"
+                "  reorder late drops:   %lu\n"
+                "  reorder overflow:     %lu\n",
+                stat_reorder_pending_peak,
+                stat_reorder_late_drops,
+                stat_reorder_overflow);
+        fprintf(stderr,
                 "  analyze output:     %s\n"
                 "  analyze groups:     %lu\n"
                 "  analyze pulses:     %lu\n"
@@ -330,6 +345,67 @@ static int write_timestamp_lines(
     return lines_written;
 }
 
+typedef struct {
+    int ms_offsets_analyze[MAX_CHANNELS];
+    int ms_offsets_raw[MAX_CHANNELS];
+    unsigned long packets_since_flush[MAX_CHANNELS];
+} write_thread_ctx_t;
+
+static void process_ordered_packet(void* ctx, int channel, const unsigned char* data, int len) {
+    write_thread_ctx_t* wctx = (write_thread_ctx_t*)ctx;
+
+    if (channel < 0 || channel >= MAX_CHANNELS) {
+        return;
+    }
+
+    double raw_timestamps[256];
+    int fronts[256];
+    uint32_t raw_words[256];
+    int ts_count = 0;
+    parse_timestamps_raw(data, raw_timestamps, fronts, raw_words, &ts_count, (Channel_t)channel);
+
+    for (int i = 0; i < ts_count; i++) {
+        if (raw_words[i] == 0u) {
+            stat_inc(&stat_markers_100ms);
+        }
+    }
+
+    if (g_analyzer) {
+        analyze_stream_feed(
+            g_analyzer,
+            channel,
+            raw_timestamps,
+            fronts,
+            raw_words,
+            ts_count,
+            &wctx->ms_offsets_analyze[channel]
+        );
+    }
+
+    if (g_capture.record_raw) {
+        if (!files[channel]) {
+            open_file((Channel_t)channel);
+        }
+        if (files[channel]) {
+            write_timestamp_lines(
+                files[channel],
+                (Channel_t)channel,
+                raw_timestamps,
+                fronts,
+                raw_words,
+                ts_count,
+                &wctx->ms_offsets_raw[channel]
+            );
+
+            wctx->packets_since_flush[channel]++;
+            if (wctx->packets_since_flush[channel] >= FLUSH_EVERY_PACKETS) {
+                fflush(files[channel]);
+                wctx->packets_since_flush[channel] = 0;
+            }
+        }
+    }
+}
+
 int enqueue_packet(const unsigned char* packet, int len, Channel_t channel) {
     pthread_mutex_lock(&queue_mutex);
 
@@ -385,9 +461,23 @@ int dequeue_packet(packet_info_t* out) {
 void* write_thread(void* arg) {
     (void)arg;
     packet_info_t pkt;
-    static int ms_offsets_analyze[MAX_CHANNELS] = {0, 0, 0, 0};
-    static int ms_offsets_raw[MAX_CHANNELS] = {0, 0, 0, 0};
-    static unsigned long packets_since_flush[MAX_CHANNELS] = {0, 0, 0, 0};
+    write_thread_ctx_t wctx;
+    PacketReorder reorder;
+    memset(&wctx, 0, sizeof(wctx));
+
+    if (g_analyzer) {
+        packet_reorder_configure_analyze(
+            &reorder,
+            g_capture.photon_channel,
+            g_capture.trigger_channel
+        );
+        fprintf(stderr,
+                "packet_collector: reorder ON photon=ch%d trigger=ch%d step=2\n",
+                g_capture.photon_channel,
+                g_capture.trigger_channel);
+    } else {
+        packet_reorder_init(&reorder);
+    }
 
     while (1) {
         if (dequeue_packet(&pkt) < 0) {
@@ -399,55 +489,22 @@ void* write_thread(void* arg) {
             continue;
         }
 
-        double raw_timestamps[256];
-        int fronts[256];
-        uint32_t raw_words[256];
-        int ts_count = 0;
-        parse_timestamps_raw(pkt.data, raw_timestamps, fronts, raw_words, &ts_count, pkt.channel);
-
-        for (int i = 0; i < ts_count; i++) {
-            if (raw_words[i] == 0u) {
-                stat_inc(&stat_markers_100ms);
-            }
-        }
-
-        if (g_analyzer) {
-            analyze_stream_feed(
-                g_analyzer,
-                (int)pkt.channel,
-                raw_timestamps,
-                fronts,
-                raw_words,
-                ts_count,
-                &ms_offsets_analyze[pkt.channel]
-            );
-        }
-
-        if (g_capture.record_raw) {
-            if (!files[pkt.channel]) {
-                open_file(pkt.channel);
-            }
-            if (files[pkt.channel]) {
-                write_timestamp_lines(
-                    files[pkt.channel],
-                    pkt.channel,
-                    raw_timestamps,
-                    fronts,
-                    raw_words,
-                    ts_count,
-                    &ms_offsets_raw[pkt.channel]
-                );
-
-                packets_since_flush[pkt.channel]++;
-                if (packets_since_flush[pkt.channel] >= FLUSH_EVERY_PACKETS) {
-                    fflush(files[pkt.channel]);
-                    packets_since_flush[pkt.channel] = 0;
-                }
-            }
-        }
-
-        free(pkt.data);
+        uint16_t counter = packet_payload_counter(pkt.data);
+        packet_reorder_submit(
+            &reorder,
+            (int)pkt.channel,
+            counter,
+            pkt.data,
+            pkt.len,
+            process_ordered_packet,
+            &wctx
+        );
     }
+
+    packet_reorder_flush(&reorder, process_ordered_packet, &wctx);
+    stat_reorder_late_drops = packet_reorder_late_drops(&reorder);
+    stat_reorder_pending_peak = packet_reorder_pending_peak(&reorder);
+    stat_reorder_overflow = packet_reorder_overflow(&reorder);
 
     for (int i = 0; i < MAX_CHANNELS; i++) {
         if (files[i]) {
