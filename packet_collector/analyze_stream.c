@@ -266,6 +266,18 @@ void analyze_stream_feed(
 
         double corrected = 100.0 * current_offset + timestamps[i];
 
+        if (channel == stream->config.trigger_channel &&
+            stream->has_pending_trigger_start &&
+            corrected <= stream->pending_trigger_start) {
+            int guard = 0;
+            while (corrected <= stream->pending_trigger_start && guard < 16) {
+                current_offset++;
+                corrected = 100.0 * current_offset + timestamps[i];
+                stream->implicit_markers++;
+                guard++;
+            }
+        }
+
         if (channel == stream->config.photon_channel) {
             append_photon(stream, corrected);
         } else if (channel == stream->config.trigger_channel) {
