@@ -6,10 +6,31 @@
 extern "C" {
 #endif
 
-#define PACKET_REORDER_MAX_PENDING 2048u
-#define PACKET_REORDER_MAX_GAP     256u
+#define PACKET_REORDER_MAX_PENDING  2048u
+#define PACKET_REORDER_MAX_GAP      256u
+#define PACKET_REORDER_MAX_CHANNELS 4
 
-typedef struct PacketReorder PacketReorder;
+typedef struct {
+    unsigned char* data;
+    int len;
+    uint16_t counter;
+} PacketReorderPending;
+
+typedef struct {
+    int enabled;
+    int have_next;
+    uint16_t next_expected;
+    uint16_t counter_step;
+    PacketReorderPending pending[PACKET_REORDER_MAX_PENDING];
+    int pending_count;
+    int pending_peak;
+    unsigned long late_drops;
+    unsigned long overflow;
+} PacketReorderChannel;
+
+typedef struct PacketReorder {
+    PacketReorderChannel channels[PACKET_REORDER_MAX_CHANNELS];
+} PacketReorder;
 
 typedef void (*PacketReorderDeliverFn)(
     void* ctx,
