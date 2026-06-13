@@ -27,21 +27,17 @@ def read_triggers(filename):
     if not os.path.exists(filename):
         print(f"Warning: {filename} not found")
         return triggers
-    
+
     with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
-            line = line.strip()
+            line = ''.join(c for c in line.strip() if c.isprintable())
             if not line:
                 continue
-            # Убираем последнюю цифру (фронт), оставляем только время
-            if '.' in line:
-                parts = line.split('.')
-                if len(parts) == 2:
-                    # Оставляем целую часть и дробную без последней цифры
-                    fractional = parts[1][:-1] if len(parts[1]) > 1 else '0'
-                    line = f"{parts[0]}.{fractional}"
+            # ch2 raw format: %.6f + trigger front (0/1) as last character
+            if len(line) < 2:
+                continue
             try:
-                triggers.append(float(line))
+                triggers.append(float(line[:-1]))
             except ValueError:
                 continue
     return triggers
