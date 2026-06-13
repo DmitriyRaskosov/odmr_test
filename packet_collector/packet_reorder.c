@@ -28,8 +28,10 @@ static int find_pending_index(PacketReorderChannel* ch, uint16_t counter) {
     return -1;
 }
 
-static void remove_pending_at(PacketReorderChannel* ch, int index) {
-    free(ch->pending[index].data);
+static void remove_pending_at(PacketReorderChannel* ch, int index, int free_data) {
+    if (free_data) {
+        free(ch->pending[index].data);
+    }
     if (index < ch->pending_count - 1) {
         ch->pending[index] = ch->pending[ch->pending_count - 1];
     }
@@ -81,7 +83,7 @@ static void try_drain_channel(
         }
 
         PacketReorderPending slot = ch->pending[index];
-        remove_pending_at(ch, index);
+        remove_pending_at(ch, index, 0);
         deliver_packet(ch, slot.data, slot.len, deliver, ctx, channel);
         ch->next_expected = (uint16_t)(ch->next_expected + ch->counter_step);
     }
