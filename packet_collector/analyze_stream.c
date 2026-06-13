@@ -30,9 +30,6 @@ struct AnalyzeStream {
 
     double last_raw_ms[4];
     int have_last_raw[4];
-
-    double last_raw_odmr;
-    int have_last_raw_odmr;
 };
 
 static size_t bisect_left(const double* values, size_t begin, size_t count, double value) {
@@ -53,11 +50,6 @@ static void track_photon_buffer_peak(AnalyzeStream* stream) {
     if (stream->photon_count > stream->photon_buffer_peak) {
         stream->photon_buffer_peak = stream->photon_count;
     }
-}
-
-static int is_odmr_channel(const AnalyzeStream* stream, int channel) {
-    return channel == stream->config.photon_channel ||
-           channel == stream->config.trigger_channel;
 }
 
 static void trim_photons_before_index(AnalyzeStream* stream, size_t keep_from) {
@@ -265,26 +257,14 @@ void analyze_stream_feed(
     int current_offset = *ms_offset;
 
     for (int i = 0; i < count; i++) {
-        int odmr = is_odmr_channel(stream, channel);
-
         if (raw_words[i] == 0u) {
             current_offset++;
-            if (odmr) {
-                stream->have_last_raw_odmr = 0;
-            } else {
-                stream->have_last_raw[channel] = 0;
-            }
+            stream->have_last_raw[channel] = 0;
             continue;
         }
 
-        if (odmr) {
-            if (stream->have_last_raw_odmr &&
-                timestamps[i] < stream->last_raw_odmr) {
-                current_offset++;
-                stream->implicit_markers++;
-            }
-        } else if (stream->have_last_raw[channel] &&
-                   timestamps[i] < stream->last_raw_ms[channel]) {
+        if (stream->have_last_raw[channel] &&
+            timestamps[i] < stream->last_raw_ms[channel]) {
             current_offset++;
             stream->implicit_markers++;
         }
@@ -309,13 +289,8 @@ void analyze_stream_feed(
             append_trigger(stream, corrected, current_offset);
         }
 
-        if (odmr) {
-            stream->last_raw_odmr = timestamps[i];
-            stream->have_last_raw_odmr = 1;
-        } else {
-            stream->last_raw_ms[channel] = timestamps[i];
-            stream->have_last_raw[channel] = 1;
-        }
+        stream->last_raw_ms[channel] = timestamps[i];
+        stream->have_last_raw[channel] = 1;
     }
 
     *ms_offset = current_offset;
