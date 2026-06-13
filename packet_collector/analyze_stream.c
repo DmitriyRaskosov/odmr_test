@@ -15,7 +15,6 @@ struct AnalyzeStream {
 
     double* photons;
     size_t photon_count;
-    size_t photon_begin;
     size_t photon_capacity;
 
     unsigned long* pulse_counts;
@@ -83,16 +82,24 @@ static void append_photon(AnalyzeStream* stream, double value) {
 }
 
 static void complete_pulse(AnalyzeStream* stream, double start, double end) {
-    size_t active = stream->photon_count - stream->photon_begin;
     unsigned long count = 0;
 
-    if (active > 0) {
-        size_t left = bisect_left(stream->photons, stream->photon_begin, active, start);
-        size_t right = bisect_left(stream->photons, stream->photon_begin, active, end);
+    /* Full-list bisect like analyze.py (no sliding window). */
+    if (stream->photon_count > 0 && start < end) {
+        size_t left = bisect_left(stream->photons, 0, stream->photon_count, start);
+        size_t right = bisect_left(stream->photons, 0, stream->photon_count, end);
         if (right > left) {
             count = (unsigned long)(right - left);
         }
-        stream->photon_begin = right;
+    } else if (start >= end) {
+        static int bad_window_logs = 0;
+        if (bad_window_logs < 3) {
+            fprintf(stderr,
+                    "analyze_stream: bad pulse window start=%.9f end=%.9f\n",
+                    start,
+                    end);
+            bad_window_logs++;
+        }
     }
 
     if (!ensure_pulse_capacity(stream, stream->pulse_count + 1)) {

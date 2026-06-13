@@ -48,7 +48,7 @@ def count_photons_between(photons, start, end):
     # ИСПРАВЛЕНО: теперь включаем start (>=), но не включаем end (<)
     left = bisect.bisect_left(photons, start)   # первый индекс >= start
     right = bisect.bisect_left(photons, end)    # первый индекс >= end
-    return right - left
+    return max(0, right - left)
 
 def main():
     parser = argparse.ArgumentParser(description='Count photons in even/odd pulses')
