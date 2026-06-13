@@ -1,3 +1,41 @@
-*.txt
-.vscode
-fpga2
+# CMake / build (локально у каждого пользователя и машины)
+build/
+
+# Бинарники в корне (legacy, если остались от старой сборки)
+/cv_odmr
+/rabi
+/impulse_odmr
+/packet_capture
+/fpga2
+
+# Результаты захвата и экспериментов
+runs/
+/ch0_*.txt
+/ch1_*.txt
+/ch2_*.txt
+/ch3_*.txt
+/pulses_grouped.txt
+/pulses_offline.txt
+/*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Qt / photonCounter build artifacts
+photonCounter/*.o
+photonCounter/moc_*
+photonCounter/photonCounter
+
+# FetchContent test binaries (local build)
+/headertest
+/unittest
+
+# Native / compiled artifacts
+spincore_driver/__pycache__/
+spincore_driver/*.so
+spincore_driver/*.dll
+spincore_driver/*.pyc
+packet_collector/fpga2
+photonCounter/rawsocket_mmap
+

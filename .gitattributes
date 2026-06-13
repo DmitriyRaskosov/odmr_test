@@ -1,0 +1,4 @@
+*.c text eol=lf working-tree-encoding=UTF-8
+*.h text eol=lf working-tree-encoding=UTF-8
+*.cpp text eol=lf working-tree-encoding=UTF-8
+*.hpp text eol=lf working-tree-encoding=UTF-8
