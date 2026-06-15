@@ -65,8 +65,8 @@ int main(int argc, char **argv){
     std::cout << "  gain = " << rigol.gain << std::endl;
     std::cout << "  start_freq = " << rigol.freq / 1e6 << " MHz\n";
 
-    //auto r = RigolDriver();
-    //r.setup_rabi(rigol.gain,rigol.freq);
+    auto r = RigolDriver();
+    r.setup_rabi(rigol.gain,rigol.freq);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     // Initialize Python once
     Py_Initialize();

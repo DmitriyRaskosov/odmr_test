@@ -28,7 +28,7 @@ Stop capture with Ctrl+C after spammer finishes. Result: `runs/.../pulses_groupe
 Manual capture:
 
     RUN=~/odmr/runs/$(date +%Y%m%d_%H%M%S)
-    sudo ~/odmr/build/packet_capture enp0s3 \
+    sudo ~/odmr/build/packet_capture enp6s0 \
       --analyze-stream --output-dir "$RUN" --group-size 400
     sudo chown -R $(id -un):$(id -gn) "$RUN"
 

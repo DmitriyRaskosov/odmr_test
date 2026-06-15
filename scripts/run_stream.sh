@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ODMR_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IFACE="${IFACE:-enp0s3}"
+IFACE="${IFACE:-enp6s0}"
 RUN_LABEL="${RUN_LABEL:-run}"
 GROUP_SIZE="${GROUP_SIZE:-400}"
 

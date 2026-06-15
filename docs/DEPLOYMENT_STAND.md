@@ -44,7 +44,7 @@
 | | **Лаборатория (legacy)** | **Production (новый)** |
 |--|--------------------------|-------------------------|
 | Запуск | cv_odmr / rabi / impulse_odmr | packet_capture + run_stream.sh |
-| Оборудование | Rigol (/dev/usbtmc1), SpinCore, ini | Только сеть + ПЛИС |
+| Оборудование | Rigol (/dev/usbtmc2), SpinCore, ini | Только сеть + ПЛИС |
 | Python при старте | Да (builder.py) | Нет |
 | Сырые файлы | ch0_0.txt, ch2_0.txt в CWD | по умолчанию **не пишутся** |
 | Результат | вручную analyze.py | сразу pulses_grouped.txt |
@@ -154,6 +154,8 @@ export RUN_LABEL=production
 ---
 
 ## 12. Следующие шаги
+
+Команды для smoke на стенде: **[PLIS_SMOKE_RUNBOOK.md](PLIS_SMOKE_RUNBOOK.md)**.
 
 - [ ] Первый smoke на ПЛИС с IFACE стенда
 - [ ] При необходимости — короткий --record-raw + verify_offline.sh

@@ -20,7 +20,7 @@ public:
 
 class RigolDriver {
 public:
-    explicit RigolDriver(const std::string& device_path = "/dev/usbtmc1");
+    explicit RigolDriver(const std::string& device_path = "/dev/usbtmc2");
 
     void setup_rabi(int gain, double freq);
     void shutdown_rabi();
