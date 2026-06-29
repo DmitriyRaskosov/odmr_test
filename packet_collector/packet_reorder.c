@@ -92,8 +92,8 @@ static void log_gap_skip(PacketReorderChannel* ch, int channel, uint16_t got) {
 }
 
 /*
- * If next_expected is missing but later packets are already buffered, skip the
- * hole and continue delivery so arrived packets are never dropped at flush.
+ * At end of capture only: next_expected is still missing but later packets were
+ * buffered out-of-order; skip the hole so arrived tail packets are delivered.
  */
 static int advance_over_gap(PacketReorderChannel* ch, int channel) {
     uint16_t best;
@@ -134,8 +134,6 @@ static void try_drain_channel(
     void* ctx
 ) {
     while (1) {
-        advance_over_gap(ch, channel);
-
         int index = find_pending_index(ch, ch->next_expected);
         if (index < 0) {
             break;
@@ -216,7 +214,7 @@ int packet_reorder_submit(
         return 0;
     }
 
-    /* True duplicate: same counter already delivered or skipped past. */
+    /* Already delivered (retransmit); safe to drop. */
     ch->late_drops++;
     if (ch->late_drops <= 3) {
         fprintf(stderr,
@@ -246,10 +244,15 @@ void packet_reorder_flush(PacketReorder* ro, PacketReorderDeliverFn deliver, voi
             if (ch->pending_count == pending_before) {
                 if (!advance_over_gap(ch, channel)) {
                     fprintf(stderr,
-                            "packet_reorder: flush stuck ch=%d pending=%d expected=%u\n",
+                            "packet_reorder: flush ch=%d pending=%d expected=%u "
+                            "(unrecoverable holes; experiment incomplete)\n",
                             channel,
                             ch->pending_count,
                             (unsigned)ch->next_expected);
+                    for (int i = 0; i < ch->pending_count; i++) {
+                        free(ch->pending[i].data);
+                    }
+                    ch->pending_count = 0;
                     break;
                 }
             }
