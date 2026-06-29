@@ -79,6 +79,16 @@ SOAK_DURATION_SEC=600 RUN_LABEL=cv_odmr_10m bash scripts/run_soak.sh
 .\scripts\spammer_odmr_compare.ps1 -LongCvOdmr -DurationSec 600 -DstHost 192.168.1.9
 ```
 
+Shorter smoke runs (same pair, adjust both sides):
+
+| Duration | VM `SOAK_DURATION_SEC` | Windows `-DurationSec` |
+|----------|------------------------|-------------------------|
+| 1 min | 60 | 60 |
+| 3 min | 180 | 180 |
+| 5 min | 300 | 300 |
+
+Soak `pulses_grouped.txt`: one row per completed frequency group; `group` column is a **global** index (0…35, 36…71, …). Map MHz as `group % 36` from `cv_odmr.ini`. Expect `reorder late drops: 0` when counter stays continuous across sweeps.
+
 ### T2 — 1 h dense OdmrPair soak
 
 ```bash
