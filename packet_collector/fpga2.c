@@ -275,6 +275,20 @@ void open_file(Channel_t ch) {
     files[ch] = log;
 }
 
+static int timestamp_payload_all_zero_from(const unsigned char* packet, size_t index) {
+    while (index + 3 < 1066) {
+        uint32_t word = ((uint32_t)packet[index] << 24) |
+                        ((uint32_t)packet[index + 1] << 16) |
+                        ((uint32_t)packet[index + 2] << 8) |
+                        (uint32_t)packet[index + 3];
+        if (word != 0u) {
+            return 0;
+        }
+        index += 4;
+    }
+    return 1;
+}
+
 void parse_timestamps_raw(
     const unsigned char* packet,
     double* timestamps,
@@ -291,6 +305,12 @@ void parse_timestamps_raw(
                              ((uint32_t)packet[index + 1] << 16) |
                              ((uint32_t)packet[index + 2] << 8) |
                              (uint32_t)packet[index + 3];
+
+        /* Trailing 0x00000000 is payload padding, not a +100 ms marker. */
+        if (timestamp == 0u && cnt > 0 &&
+            timestamp_payload_all_zero_from(packet, index + 4)) {
+            break;
+        }
 
         if (raw_words) {
             raw_words[cnt] = timestamp;
