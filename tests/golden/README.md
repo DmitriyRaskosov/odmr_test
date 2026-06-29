@@ -1,14 +1,22 @@
 # Golden compare runs
 
-Regression reference: stream `pulses_grouped.txt` matched offline analyze.py (debug capture with --record-raw).
+Historical regression: stream `pulses_grouped.txt` matched offline `analyze.py` on raw `ch*.txt`.
+
+**Requires debug capture:** `packet_capture --analyze-stream --record-raw --output-dir "$RUN"`.
+
+Production (`run_stream.sh`) does **not** write raw files or use `analyze.py`.
 
 ## 20260613_134939_compare
 
-    cmp tests/golden/20260613_134939_compare/pulses_grouped.txt \
-        tests/golden/20260613_134939_compare/pulses_grouped_offline.txt && echo GOLDEN_OK
+```bash
+cmp tests/golden/20260613_134939_compare/pulses_grouped.txt \
+    tests/golden/20260613_134939_compare/pulses_grouped_offline.txt && echo GOLDEN_OK
+```
 
-Normal production runs do not use analyze.py or raw files.
+Save a new reference after intentional analyze changes:
 
-Save a new golden grouped output:
+```bash
+./scripts/save_golden_run.sh ~/odmr/runs/YYYYMMDD_HHMMSS_run
+```
 
-    ./scripts/save_golden_run.sh ~/odmr/runs/YYYYMMDD_HHMMSS_run
+Current grouping uses `repeats_per_freq` from `cv_odmr.ini`, not legacy `group_size=400`.

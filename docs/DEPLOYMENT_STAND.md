@@ -1,56 +1,50 @@
 # Перенос ODMR: VM + спаммер → Linux-стенд + ПЛИС
 
-Документ для ссылки при новой установке Cursor / развёртывании на реальном стенде.
-
-**Состояние на:** июнь 2026.
-**Репозитории:** [odmr_test](https://github.com/DmitriyRaskosov/odmr_test) (приём + analyze), [udp_spammer](https://github.com/DmitriyRaskosov/udp_spammer) (только тест без платы).
+**Состояние:** июнь 2026, ветка **`home`**.  
+**Репозитории:** [odmr_test](https://github.com/DmitriyRaskosov/odmr_test), [udp_spammer](https://github.com/DmitriyRaskosov/udp_spammer) (только тест без платы).
 
 ---
 
-## 1. Цель переноса
+## 1. Цель
 
-Заменить тестовый контур **Windows спаммер → VM packet_capture** на production на стенде:
+Production-контур на стенде:
 
 ```
-ПЛИС (UDP) → Linux ПК (packet_capture --analyze-stream) → runs/.../pulses_grouped.txt
+ПЛИС (UDP) → Linux (packet_capture --analyze-stream) → runs/.../pulses_grouped.txt
 ```
 
-**Не цель:** переписать управление экспериментом (SpinCore, Rigol) — это по-прежнему cv_odmr / rabi / impulse_odmr.
+**Не переписываем:** SpinCore, Rigol, `cv_odmr.ini` — это `cv_odmr` / rabi / impulse_odmr.
 
-**Цель:** принимать **реальный** UDP с платы и получать тот же pulses_grouped.txt, что проверен на VM (10 мин и 2 ч без потерь, bad pulse windows: 0).
+**Переносим:** приём UDP + online-группировка even/odd фотонов по точкам sweep.
 
 ---
 
-## 2. Что уже проверено (VM + спаммер)
+## 2. Что проверено на VM (июнь 2026)
 
 | Проверка | Результат |
 |----------|-----------|
-| Интервал между парами ch0+ch2 | **255 µs** (как в pcap платы) |
-| Скорость | ~7840 UDP-пак/с, ~3922 пары/с |
-| 10 мин | 4 705 882 пакета, 0 потерь, bad windows: 0 |
-| 2 ч | 56 470 588 пакетов, 0 потерь, bad windows: 0 |
-| Photon buffer peak | ~1021 (стабильно) |
-| Reorder | peak 3, fix double-free в packet_reorder.c (cbdbcf1) |
-| Выход | pulses_grouped.txt, group_size=400 |
+| Профиль | `-CvOdmrProfile` + `cv_odmr.ini` (36 частот × 100 повторов) |
+| Пакетов | 14 400 enqueued, 0 kernel drops |
+| Analyze | 36/36 групп, 7200 импульсов, bad windows: 0 |
+| Reorder | late drops: 0, gap skips: 0 |
+| Выход | `pulses_grouped.txt` (без raw `ch*.txt`) |
 
-Спаммер: udp_lab_sim, scripts/spammer_odmr_compare.ps1, -Count N (пакеты, не пары).
-
-Приём: ~/odmr/scripts/run_stream.sh, бинарник build/packet_capture.
+Ранние soak-тесты (10 мин / 2 ч, ~56M пакетов, `group_size=400`) — **устаревший** контур с плотным спаммером и другой группировкой; не использовать как эталон для cv_odmr.
 
 ---
 
-## 3. Два мира в одном odmr (не путать)
+## 3. Два режима в одном репозитории
 
 | | **Лаборатория (legacy)** | **Production (новый)** |
 |--|--------------------------|-------------------------|
-| Запуск | cv_odmr / rabi / impulse_odmr | packet_capture + run_stream.sh |
-| Оборудование | Rigol (/dev/usbtmc1), SpinCore, ini | Только сеть + ПЛИС |
-| Python при старте | Да (builder.py) | Нет |
-| Сырые файлы | ch0_0.txt, ch2_0.txt в CWD | по умолчанию **не пишутся** |
-| Результат | вручную analyze.py | сразу pulses_grouped.txt |
-| Спаммер | не нужен | только для тестов без платы |
+| Запуск | `cv_odmr` / rabi / impulse_odmr | `packet_capture` + `run_stream.sh` |
+| Оборудование | Rigol, SpinCore, ini | Сеть + ПЛИС (или спаммер на VM) |
+| Python при capture | Да (builder) | **Нет** |
+| Сырые `ch*.txt` | старый путь `cv_odmr` | **не пишутся** (`--analyze-stream`) |
+| Результат | вручную `analyze.py` | сразу `pulses_grouped.txt` |
+| Группировка | offline | `repeats_per_freq` + `expected_groups` из ini |
 
-**На стенде:** для pulses_grouped использовать **packet_capture --analyze-stream** параллельно эксперименту, а не встроенный захват cv_odmr без analyze.
+На стенде: **`run_stream.sh` параллельно эксперименту**, не встроенный захват `cv_odmr` без analyze.
 
 ---
 
@@ -59,104 +53,87 @@
 | Параметр | Значение |
 |----------|----------|
 | IP платы | 192.168.10.10 |
-| IP приёмника | 192.168.10.2 (или фактический IP ПК в подсети) |
+| IP приёмника | 192.168.10.2 (или IP ПК в подсети) |
 | UDP порт | **4660** |
-| Кадр Ethernet | **1066** B (1024 payload) |
-| Payload | байт 0 = канал, 2–3 = counter, 4–1023 = **255×uint32** timestamps |
-| ODMR каналы | **ch0** фотоны, **ch2** триггер |
-| Частота кадров | **~255 µs** между парами (не 1–5 µs) |
+| Кадр Ethernet | **1066 B** (1024 payload) |
+| Каналы ODMR | **ch0** фотоны, **ch2** триггер |
+| Интервал пар ch0+ch2 | **~255 µs** (типично) |
 
-Отличие ПЛИС от спаммера: **переменное** число событий в пакете, джиттер, реальные нс — протокол тот же, наполнение другое.
+ПЛИС: переменное число событий в пакете, джиттер — протокол тот же, наполнение другое.
 
 ---
 
-## 5. Установка на Linux-стенде
+## 5. Установка на стенде
 
 ```bash
 git clone git@github.com:DmitriyRaskosov/odmr_test.git ~/odmr
 cd ~/odmr
-git pull github main
+git checkout home
+git pull origin home
 rm -rf build
-cmake -S . -B build -DPython3_EXECUTABLE=$(which python3)
+cmake -S . -B build -DPython3_EXECUTABLE="$(which python3)"
 cmake --build build --target packet_capture
 mkdir -p ~/odmr/runs
+cp scripts/stand.env.example scripts/stand.env   # отредактировать IFACE
 ```
 
-- Исходники: **UTF-8 без BOM** (scripts/ensure_utf8.py после правок с Windows).
-- packet_capture **не требует** Python в runtime.
-- cv_odmr/rabi — нужны Python **≥3.10** dev headers и SpinCore/Rigol при полном эксперименте.
+- Исходники: UTF-8 без BOM (`scripts/ensure_utf8.py`).
+- Полный `cv_odmr` на стенде: Python ≥3.10, SpinCore, Rigol.
 
 ---
 
-## 6. Запуск production на стенде
+## 6. Запуск production
 
 ```bash
 cd ~/odmr
-export IFACE=<eth к плате>
-export RUN_LABEL=production
-./scripts/run_stream.sh
+bash scripts/run_stream.sh
 ```
 
-Параллельно — штатный запуск эксперимента. Остановка захвата: **Ctrl+C** после окончания эксперимента.
+Параллельно — штатный `cv_odmr` (или только плата + capture на VM-тесте).  
+Остановка: **Ctrl+C** после окончания sweep.
 
-Результат: ~/odmr/runs/YYYYMMDD_HHMMSS_<label>/pulses_grouped.txt
+Результат: `~/odmr/runs/YYYYMMDD_HHMMSS_<label>/pulses_grouped.txt`
 
 ---
 
-## 7. Критерии go / no-go на ПЛИС
+## 7. Критерии go / no-go
 
 **Smoke (5–10 мин):**
 
-- [ ] tcpdump -i $IFACE udp port 4660 — кадры ~1066 B
-- [ ] packets enqueued > 0
-- [ ] enqueue failures: 0, kernel drops: 0
-- [ ] **bad pulse windows: 0**
-- [ ] photon buffer peak порядка сотен–тысяч
-- [ ] pulses_grouped.txt не пустой
+- [ ] `tcpdump -i $IFACE udp port 4660` — кадры ~1066 B
+- [ ] `packets enqueued` > 0, `enqueue failures`: 0, `kernel drops`: 0
+- [ ] `reorder late drops`: **0**, `reorder gap skips`: **0**
+- [ ] `bad pulse windows`: **0**
+- [ ] `analyze groups` = `expected_groups` из ini
+- [ ] `pulses_grouped.txt` — N+1 строк (заголовок + группы)
 
-**Желательно (debug):** --record-raw + ./scripts/verify_offline.sh (IDENTICAL).
+**Опционально (debug):** capture с `--record-raw` + `verify_offline.sh` — только регрессия, не production.
 
 ---
 
-## 8. Риски совместимости
+## 8. Риски
 
 | Риск | Действие |
 |------|----------|
-| cv_odmr без Rigol/SpinCore | На стенде нужно железо или правки |
-| Старые скрипты ищут ch0_0.txt в CWD | Обновить пути на runs/... |
-| ch0+ch1 в старом pcap vs ch0+ch2 ODMR | Прошивка должна слать ch2 trigger |
-| Откат | odmr_legacy или старый коммит |
+| Потеря триггера ch2 | `gap skips` > 0 или неполные группы — повторить эксперимент |
+| `cv_odmr` без Rigol/SpinCore | Нужно железо или capture-only тест |
+| ch0+ch1 в старом pcap | ODMR = ch0 + ch2 |
+| Длинный эксперимент | Не включать `--record-raw` (десятки ГБ на диск) |
 
 ---
 
-## 9. Что не переносится со спаммера
+## 9. Спаммер (только тест)
 
-- Windows udp_lab_sim — только тест.
-- IP 192.168.1.9 VM — на стенде 192.168.10.x.
-- Идеальные 255 событий × 100 ns в каждом пакете — артефакт симулятора.
+Windows VM-тест:
 
----
+```powershell
+.\scripts\spammer_odmr_compare.ps1 -CvOdmrProfile -DstHost <VM_IP>
+```
 
-## 10. Ключевые коммиты
-
-| Репо | Что |
-|------|-----|
-| odmr_test | packet_capture, analyze_stream.c, packet_reorder.c, run_stream.sh |
-| udp_spammer | OdmrPairFactory fast path, 255 µs, коммит 276c5d5 |
-| Golden | tests/golden/20260613_134939_compare/ |
+Не путать с `-Count 400` (короткий legacy smoke без полного sweep).
 
 ---
 
-## 11. Контекст для нового чата в Cursor
+## 10. Контекст для нового чата
 
-> Проект ODMR: приём UDP с платы (ch0 photon, ch2 trigger), online analyze в packet_capture --analyze-stream, выход pulses_grouped.txt (group_size=400). На VM проверено со спаммером 255 µs, 2 ч без потерь. Переносим на Linux-стенд с реальной ПЛИС: run_stream.sh, сеть 192.168.10.10→.2:4660, не путать с cv_odmr/Rigol/SpinCore. Репо: odmr_test + udp_spammer (только тест).
-
----
-
-## 12. Следующие шаги
-
-- [ ] Первый smoke на ПЛИС с IFACE стенда
-- [ ] При необходимости — короткий --record-raw + verify_offline.sh
-- [ ] Полный эксперимент + сверка числа групп с длительностью sweep
-- [ ] (Опционально) нерегулярные фотоны в спаммере — без ускорения UDP до 1–5 µs
-- [ ] (Опционально) графики из pulses_grouped
+> ODMR home: `packet_capture --analyze-stream`, ini `cv_odmr.ini` → `repeats_per_freq` + `expected_groups`, выход `pulses_grouped.txt` (# group, even, odd). VM: `run_stream.sh` + `-CvOdmrProfile`. Reorder: старт counter 0/1, gap skip только на flush. Стенд: 192.168.10.10 → .2:4660, ch0/ch2.
