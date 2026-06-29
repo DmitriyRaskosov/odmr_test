@@ -126,13 +126,22 @@ static void report_kernel_drops(int sock) {
 static void print_periodic_stats(int sock, unsigned long queue_depth) {
     fprintf(stderr,
             "packet_collector: enqueued=%lu enqueue_fail=%lu wrong_len=%lu "
-            "write_err=%lu kernel_drops=%lu queue=%lu\n",
+            "write_err=%lu kernel_drops=%lu queue=%lu",
             stat_packets_enqueued,
             stat_enqueue_fail,
             stat_wrong_len,
             stat_write_errors,
             stat_kernel_drops_total,
             queue_depth);
+    if (g_analyzer) {
+        fprintf(stderr,
+                " pulses=%lu groups=%lu photon_peak=%zu bad_win=%lu",
+                analyze_stream_pulses_completed(g_analyzer),
+                analyze_stream_groups_written(g_analyzer),
+                analyze_stream_photon_buffer_peak(g_analyzer),
+                analyze_stream_bad_windows_skipped(g_analyzer));
+    }
+    fprintf(stderr, "\n");
     fflush(stderr);
 }
 

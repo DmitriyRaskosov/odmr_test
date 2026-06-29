@@ -18,7 +18,8 @@ static void usage(const char* prog) {
             "  --expected-groups N    output rows expected (from ini sweep if omitted)\n"
             "  --group-size N         alias for --repeats-per-freq (legacy)\n"
             "  --photon-channel N     photon channel id (default: 0)\n"
-            "  --trigger-channel N    trigger channel id (default: 2)\n",
+            "  --trigger-channel N    trigger channel id (default: 2)\n"
+            "  --soak                 endurance mode: analyze-stream, expected_groups=0, no raw\n",
             prog);
 }
 
@@ -75,6 +76,7 @@ static void apply_experiment_ini(CaptureConfig* config) {
 
 int main(int argc, char **argv) {
     CaptureConfig config;
+    int soak_mode = 0;
     init_capture_config(&config);
 
     for (int i = 1; i < argc; i++) {
@@ -126,6 +128,10 @@ int main(int argc, char **argv) {
                 return 1;
             }
             config.trigger_channel = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--soak") == 0) {
+            soak_mode = 1;
+            config.analyze_stream = 1;
+            config.record_raw = 0;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             usage(argv[0]);
             return 0;
@@ -149,6 +155,10 @@ int main(int argc, char **argv) {
 
     if (config.experiment_ini) {
         apply_experiment_ini(&config);
+    }
+
+    if (soak_mode) {
+        config.expected_groups = 0;
     }
 
     if (config.repeats_per_freq <= 0) {

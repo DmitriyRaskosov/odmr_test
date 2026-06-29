@@ -66,6 +66,22 @@ Frequency in MHz is **not** in the file; map `group` → MHz from `cv_odmr.ini` 
 | `bad pulse windows` | **0** |
 | `analyze groups` | `expected_groups` from ini (e.g. 36) |
 
+## Long experiments (10 min – hours)
+
+See [docs/LONG_EXPERIMENT.md](docs/LONG_EXPERIMENT.md).
+
+```bash
+# VM — 1 h soak (start before Windows spammer)
+SOAK_DURATION_SEC=3600 RUN_LABEL=soak_1h bash scripts/run_soak.sh
+```
+
+```powershell
+# Windows — dense OdmrPair, same duration
+.\scripts\spammer_odmr_compare.ps1 -SoakOdmrPair -DurationSec 3600 -DstHost 192.168.1.9
+```
+
+10 min cv_odmr loop: `SOAK_DURATION_SEC=600` + `-LongCvOdmr -DurationSec 600`.
+
 Manual capture (equivalent to `run_stream.sh`):
 
 ```bash
