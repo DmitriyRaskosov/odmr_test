@@ -88,6 +88,7 @@ static volatile unsigned long stat_kernel_drops_total = 0;
 static unsigned long stat_reorder_late_drops = 0;
 static unsigned long stat_reorder_pending_peak = 0;
 static unsigned long stat_reorder_overflow = 0;
+static unsigned long stat_reorder_gap_skips = 0;
 
 static void stat_inc(volatile unsigned long* counter) {
     __sync_fetch_and_add(counter, 1);
@@ -224,10 +225,12 @@ static void print_capture_summary(int sock) {
         fprintf(stderr,
                 "  reorder pending peak: %lu\n"
                 "  reorder late drops:   %lu\n"
-                "  reorder overflow:     %lu\n",
+                "  reorder overflow:     %lu\n"
+                "  reorder gap skips:    %lu\n",
                 stat_reorder_pending_peak,
                 stat_reorder_late_drops,
-                stat_reorder_overflow);
+                stat_reorder_overflow,
+                stat_reorder_gap_skips);
         fprintf(stderr,
                 "  analyze output:     %s\n"
                 "  analyze groups:     %lu (expected %d)\n"
@@ -534,6 +537,7 @@ void* write_thread(void* arg) {
     stat_reorder_late_drops = packet_reorder_late_drops(&reorder);
     stat_reorder_pending_peak = packet_reorder_pending_peak(&reorder);
     stat_reorder_overflow = packet_reorder_overflow(&reorder);
+    stat_reorder_gap_skips = packet_reorder_gap_skips(&reorder);
 
     for (int i = 0; i < MAX_CHANNELS; i++) {
         if (files[i]) {

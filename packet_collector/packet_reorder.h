@@ -6,8 +6,8 @@
 extern "C" {
 #endif
 
-#define PACKET_REORDER_MAX_PENDING  2048u
-#define PACKET_REORDER_MAX_GAP      256u
+/* Full cv_odmr run: ~7200 packets per channel; buffer one missing slot worth. */
+#define PACKET_REORDER_MAX_PENDING  8192u
 #define PACKET_REORDER_MAX_CHANNELS 4
 
 typedef struct {
@@ -26,6 +26,7 @@ typedef struct {
     int pending_peak;
     unsigned long late_drops;
     unsigned long overflow;
+    unsigned long gap_skips;
 } PacketReorderChannel;
 
 typedef struct PacketReorder {
@@ -42,7 +43,7 @@ typedef void (*PacketReorderDeliverFn)(
 void packet_reorder_init(PacketReorder* ro);
 void packet_reorder_configure_analyze(PacketReorder* ro, int photon_channel, int trigger_channel);
 
-/* Takes ownership of data. Frees data after deliver or on late duplicate drop. */
+/* Takes ownership of data. Frees data after deliver or on duplicate drop. */
 int packet_reorder_submit(
     PacketReorder* ro,
     int channel,
@@ -58,6 +59,7 @@ void packet_reorder_flush(PacketReorder* ro, PacketReorderDeliverFn deliver, voi
 unsigned long packet_reorder_late_drops(const PacketReorder* ro);
 unsigned long packet_reorder_pending_peak(const PacketReorder* ro);
 unsigned long packet_reorder_overflow(const PacketReorder* ro);
+unsigned long packet_reorder_gap_skips(const PacketReorder* ro);
 
 #ifdef __cplusplus
 }

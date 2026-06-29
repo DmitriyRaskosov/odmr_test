@@ -16,7 +16,7 @@ static int counter_is_future(uint16_t counter, uint16_t expected, uint16_t step)
     if (step == 0 || (diff % step) != 0) {
         return 0;
     }
-    return diff <= (uint16_t)(PACKET_REORDER_MAX_GAP * step);
+    return 1;
 }
 
 static int find_pending_index(PacketReorderChannel* ch, uint16_t counter) {
@@ -70,6 +70,63 @@ static void deliver_packet(
     (void)ch;
 }
 
+static void log_gap_skip(PacketReorderChannel* ch, int channel, uint16_t got) {
+    uint16_t expected = ch->next_expected;
+    unsigned missed;
+
+    if (ch->counter_step == 0) {
+        missed = 0;
+    } else {
+        missed = (unsigned)((uint16_t)(got - expected) / ch->counter_step);
+    }
+
+    ch->gap_skips++;
+    if (ch->gap_skips <= 5) {
+        fprintf(stderr,
+                "packet_reorder: gap ch=%d missing=%u packet(s) expected=%u resumed=%u\n",
+                channel,
+                missed,
+                (unsigned)expected,
+                (unsigned)got);
+    }
+}
+
+/*
+ * If next_expected is missing but later packets are already buffered, skip the
+ * hole and continue delivery so arrived packets are never dropped at flush.
+ */
+static int advance_over_gap(PacketReorderChannel* ch, int channel) {
+    uint16_t best;
+    int found = 0;
+
+    if (ch->pending_count == 0) {
+        return 0;
+    }
+    if (find_pending_index(ch, ch->next_expected) >= 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < ch->pending_count; i++) {
+        uint16_t candidate = ch->pending[i].counter;
+        uint16_t diff = (uint16_t)(candidate - ch->next_expected);
+        if (diff == 0 || diff > 0x8000u) {
+            continue;
+        }
+        if (!found || (uint16_t)(candidate - best) < 0x8000u) {
+            best = candidate;
+            found = 1;
+        }
+    }
+
+    if (!found || best == ch->next_expected) {
+        return 0;
+    }
+
+    log_gap_skip(ch, channel, best);
+    ch->next_expected = best;
+    return 1;
+}
+
 static void try_drain_channel(
     PacketReorderChannel* ch,
     int channel,
@@ -77,6 +134,8 @@ static void try_drain_channel(
     void* ctx
 ) {
     while (1) {
+        advance_over_gap(ch, channel);
+
         int index = find_pending_index(ch, ch->next_expected);
         if (index < 0) {
             break;
@@ -143,21 +202,25 @@ int packet_reorder_submit(
             ch->overflow++;
             if (ch->overflow <= 3) {
                 fprintf(stderr,
-                        "packet_reorder: pending full ch=%d counter=%u expected=%u\n",
+                        "packet_reorder: pending full ch=%d counter=%u expected=%u "
+                        "(pending=%d)\n",
                         channel,
                         (unsigned)counter,
-                        (unsigned)ch->next_expected);
+                        (unsigned)ch->next_expected,
+                        ch->pending_count);
             }
             free(data);
             return -1;
         }
+        try_drain_channel(ch, channel, deliver, ctx);
         return 0;
     }
 
+    /* True duplicate: same counter already delivered or skipped past. */
     ch->late_drops++;
     if (ch->late_drops <= 3) {
         fprintf(stderr,
-                "packet_reorder: late/duplicate ch=%d counter=%u expected=%u (dropped)\n",
+                "packet_reorder: duplicate ch=%d counter=%u expected=%u (dropped)\n",
                 channel,
                 (unsigned)counter,
                 (unsigned)ch->next_expected);
@@ -177,18 +240,19 @@ void packet_reorder_flush(PacketReorder* ro, PacketReorderDeliverFn deliver, voi
             continue;
         }
 
-        try_drain_channel(ch, channel, deliver, ctx);
-
-        if (ch->pending_count > 0) {
-            fprintf(stderr,
-                    "packet_reorder: flush ch=%d pending=%d expected=%u (gaps remain)\n",
-                    channel,
-                    ch->pending_count,
-                    (unsigned)ch->next_expected);
-            for (int i = 0; i < ch->pending_count; i++) {
-                free(ch->pending[i].data);
+        while (ch->pending_count > 0) {
+            int pending_before = ch->pending_count;
+            try_drain_channel(ch, channel, deliver, ctx);
+            if (ch->pending_count == pending_before) {
+                if (!advance_over_gap(ch, channel)) {
+                    fprintf(stderr,
+                            "packet_reorder: flush stuck ch=%d pending=%d expected=%u\n",
+                            channel,
+                            ch->pending_count,
+                            (unsigned)ch->next_expected);
+                    break;
+                }
             }
-            ch->pending_count = 0;
         }
     }
 }
@@ -224,6 +288,17 @@ unsigned long packet_reorder_overflow(const PacketReorder* ro) {
     }
     for (int i = 0; i < PACKET_REORDER_MAX_CHANNELS; i++) {
         total += ro->channels[i].overflow;
+    }
+    return total;
+}
+
+unsigned long packet_reorder_gap_skips(const PacketReorder* ro) {
+    unsigned long total = 0;
+    if (!ro) {
+        return 0;
+    }
+    for (int i = 0; i < PACKET_REORDER_MAX_CHANNELS; i++) {
+        total += ro->channels[i].gap_skips;
     }
     return total;
 }
