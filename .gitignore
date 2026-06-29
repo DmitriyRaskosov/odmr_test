@@ -38,4 +38,5 @@ spincore_driver/*.dll
 spincore_driver/*.pyc
 packet_collector/fpga2
 photonCounter/rawsocket_mmap
+scripts/stand.env
 

@@ -9,9 +9,13 @@ typedef struct {
     int analyze_stream;
     const char* output_dir;
     const char* output_path;
-    int group_size;
+    /** Even/odd pulse pairs per Rigol frequency (--group-size alias). */
+    int repeats_per_freq;
     int photon_channel;
     int trigger_channel;
+    /** Expected groups from sweep: round((stop-start)/step)+1; 0 = unknown. */
+    int expected_groups;
+    const char* experiment_ini;
 } CaptureConfig;
 
 int start_capture(int argc, char **argv);

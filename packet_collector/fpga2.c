@@ -230,7 +230,7 @@ static void print_capture_summary(int sock) {
                 stat_reorder_overflow);
         fprintf(stderr,
                 "  analyze output:     %s\n"
-                "  analyze groups:     %lu\n"
+                "  analyze groups:     %lu (expected %d)\n"
                 "  analyze pulses:     %lu\n"
                 "  photon buffer:      %zu (peak %zu)\n"
                 "  photons trimmed:    %lu\n"
@@ -238,6 +238,7 @@ static void print_capture_summary(int sock) {
                 "  implicit markers:   %lu\n",
                 g_analyze_output_path[0] ? g_analyze_output_path : "(unknown)",
                 analyze_stream_groups_written(g_analyzer),
+                analyze_stream_expected_groups(g_analyzer),
                 analyze_stream_pulses_completed(g_analyzer),
                 analyze_stream_photon_buffer_count(g_analyzer),
                 analyze_stream_photon_buffer_peak(g_analyzer),
@@ -624,13 +625,14 @@ void* capture_thread(void* arg) {
 int start_capture_config(const CaptureConfig* config) {
     if (!config || !config->iface) {
         fprintf(stderr, "Usage: packet_capture <iface> [--analyze-stream] [--record-raw] "
-                        "[--output-dir DIR] [-o pulses_grouped.txt] [--group-size N]\n");
+                        "[--output-dir DIR] [-o pulses_grouped.txt] "
+                        "[--experiment-ini FILE] [--repeats-per-freq N]\n");
         return -1;
     }
 
     g_capture = *config;
-    if (g_capture.group_size <= 0) {
-        g_capture.group_size = 400;
+    if (g_capture.repeats_per_freq <= 0) {
+        g_capture.repeats_per_freq = 1000;
     }
     if (g_capture.photon_channel < 0) {
         g_capture.photon_channel = 0;
@@ -661,19 +663,21 @@ int start_capture_config(const CaptureConfig* config) {
 
         AnalyzeStreamConfig stream_cfg = {
             .output_path = analyze_output,
-            .group_size = g_capture.group_size,
+            .repeats_per_freq = g_capture.repeats_per_freq,
             .photon_channel = g_capture.photon_channel,
             .trigger_channel = g_capture.trigger_channel,
+            .expected_groups = g_capture.expected_groups,
         };
         g_analyzer = analyze_stream_create(&stream_cfg);
         if (!g_analyzer) {
             return -1;
         }
         fprintf(stderr,
-                "packet_collector: analyze-stream ON output=%s group_size=%d "
-                "photon=ch%d trigger=ch%d record_raw=%d\n",
+                "packet_collector: analyze-stream ON output=%s repeats_per_freq=%d "
+                "expected_groups=%d photon=ch%d trigger=ch%d record_raw=%d\n",
                 stream_cfg.output_path,
-                stream_cfg.group_size,
+                stream_cfg.repeats_per_freq,
+                stream_cfg.expected_groups,
                 stream_cfg.photon_channel,
                 stream_cfg.trigger_channel,
                 g_capture.record_raw);
@@ -779,7 +783,7 @@ int start_capture(int argc, char **argv) {
         .record_raw = 1,
         .analyze_stream = 0,
         .output_path = "pulses_grouped.txt",
-        .group_size = 400,
+        .repeats_per_freq = 1000,
         .photon_channel = 0,
         .trigger_channel = 2,
     };

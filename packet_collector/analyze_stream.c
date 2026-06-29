@@ -114,7 +114,6 @@ static void append_photon(AnalyzeStream* stream, double value) {
 static void complete_pulse(AnalyzeStream* stream, double start, double end) {
     unsigned long count = 0;
 
-    /* Full-list bisect like analyze.py; trim spent photons after a valid window. */
     if (stream->photon_count > 0) {
         size_t left = bisect_left(stream->photons, 0, stream->photon_count, start);
         size_t right = bisect_left(stream->photons, 0, stream->photon_count, end);
@@ -132,8 +131,22 @@ static void complete_pulse(AnalyzeStream* stream, double start, double end) {
     stream->pulses_completed++;
 }
 
+static void write_group_row(
+    AnalyzeStream* stream,
+    unsigned long even_sum,
+    unsigned long odd_sum
+) {
+    if (!stream->output) {
+        return;
+    }
+
+    fprintf(stream->output, "%lu, %lu, %lu\n", stream->groups_written, even_sum, odd_sum);
+    fflush(stream->output);
+    stream->groups_written++;
+}
+
 static void write_group_if_ready(AnalyzeStream* stream) {
-    int n = stream->config.group_size;
+    int n = stream->config.repeats_per_freq;
     if (n <= 0 || !stream->output) {
         return;
     }
@@ -147,6 +160,16 @@ static void write_group_if_ready(AnalyzeStream* stream) {
     size_t offset = 0;
 
     while (offset + (size_t)n * 2 <= stream->pulse_count) {
+        if (stream->config.expected_groups > 0 &&
+            (int)stream->groups_written >= stream->config.expected_groups) {
+            fprintf(stderr,
+                    "analyze_stream: warning: extra sweep data after group %d "
+                    "(expected_groups=%d)\n",
+                    stream->config.expected_groups - 1,
+                    stream->config.expected_groups);
+            break;
+        }
+
         unsigned long even_sum = 0;
         unsigned long odd_sum = 0;
 
@@ -157,9 +180,7 @@ static void write_group_if_ready(AnalyzeStream* stream) {
             odd_sum += stream->pulse_counts[odd_idx];
         }
 
-        fprintf(stream->output, "%lu, %lu, %lu\n", stream->groups_written, even_sum, odd_sum);
-        fflush(stream->output);
-        stream->groups_written++;
+        write_group_row(stream, even_sum, odd_sum);
         offset += (size_t)n * 2;
     }
 
@@ -168,6 +189,30 @@ static void write_group_if_ready(AnalyzeStream* stream) {
         memmove(stream->pulse_counts, stream->pulse_counts + offset, remaining * sizeof(unsigned long));
         stream->pulse_count = remaining;
     }
+}
+
+static void validate_group_count(AnalyzeStream* stream) {
+    if (!stream || stream->config.expected_groups <= 0) {
+        return;
+    }
+
+    int expected = stream->config.expected_groups;
+    unsigned long written = stream->groups_written;
+
+    if ((int)written == expected) {
+        fprintf(stderr,
+                "analyze_stream: groups written %lu / expected %d (OK)\n",
+                written,
+                expected);
+        return;
+    }
+
+    fprintf(stderr,
+            "analyze_stream: WARNING groups written %lu, expected %d "
+            "(repeats_per_freq=%d)\n",
+            written,
+            expected,
+            stream->config.repeats_per_freq);
 }
 
 static void append_trigger(AnalyzeStream* stream, double value, int ms_offset) {
@@ -208,8 +253,8 @@ AnalyzeStream* analyze_stream_create(const AnalyzeStreamConfig* config) {
     }
 
     stream->config = *config;
-    if (stream->config.group_size <= 0) {
-        stream->config.group_size = 400;
+    if (stream->config.repeats_per_freq <= 0) {
+        stream->config.repeats_per_freq = 1000;
     }
 
     stream->output = fopen(config->output_path, "w");
@@ -305,6 +350,7 @@ void analyze_stream_finish(AnalyzeStream* stream) {
         stream->has_pending_trigger_start = 0;
     }
     write_group_if_ready(stream);
+    validate_group_count(stream);
     if (stream->output) {
         fflush(stream->output);
     }
@@ -312,6 +358,10 @@ void analyze_stream_finish(AnalyzeStream* stream) {
 
 unsigned long analyze_stream_groups_written(const AnalyzeStream* stream) {
     return stream ? stream->groups_written : 0;
+}
+
+int analyze_stream_expected_groups(const AnalyzeStream* stream) {
+    return stream ? stream->config.expected_groups : 0;
 }
 
 unsigned long analyze_stream_pulses_completed(const AnalyzeStream* stream) {

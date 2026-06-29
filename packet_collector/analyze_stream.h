@@ -9,9 +9,12 @@ extern "C" {
 
 typedef struct {
     const char* output_path;
-    int group_size;
+    /** Even/odd pulse pairs per sweep point (one output group). */
+    int repeats_per_freq;
     int photon_channel;
     int trigger_channel;
+    /** Expected output groups from Rigol sweep (0 = unknown). */
+    int expected_groups;
 } AnalyzeStreamConfig;
 
 typedef struct AnalyzeStream AnalyzeStream;
@@ -19,7 +22,6 @@ typedef struct AnalyzeStream AnalyzeStream;
 AnalyzeStream* analyze_stream_create(const AnalyzeStreamConfig* config);
 void analyze_stream_destroy(AnalyzeStream* stream);
 
-/* Feed decoded events from one UDP payload (after +100ms correction). */
 void analyze_stream_feed(
     AnalyzeStream* stream,
     int channel,
@@ -30,10 +32,10 @@ void analyze_stream_feed(
     int* ms_offset
 );
 
-/* Flush pending groups and close output file. */
 void analyze_stream_finish(AnalyzeStream* stream);
 
 unsigned long analyze_stream_groups_written(const AnalyzeStream* stream);
+int analyze_stream_expected_groups(const AnalyzeStream* stream);
 unsigned long analyze_stream_pulses_completed(const AnalyzeStream* stream);
 
 size_t analyze_stream_photon_buffer_count(const AnalyzeStream* stream);

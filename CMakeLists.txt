@@ -40,6 +40,7 @@ add_executable(impulse_odmr
 )
 add_executable(packet_capture
     packet_capture.cpp
+    config_parser/config_parser.cpp
 )
 
 set(ODMR_APP_INCLUDES
@@ -61,7 +62,6 @@ target_link_libraries(impulse_odmr PRIVATE rigol_driver packet_collector Python3
 
 target_include_directories(packet_capture
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/packet_collector
+        ${ODMR_APP_INCLUDES}
 )
 target_link_libraries(packet_capture PRIVATE packet_collector)

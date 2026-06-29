@@ -63,7 +63,7 @@ int main(int argc, char **argv){
     std::cout << "  start_freq = " << rigol.start_freq / 1e6 << " MHz\n";
     std::cout << "  stop_freq = " << rigol.stop_freq / 1e6 << " MHz\n";
     std::cout << "  freq_step = " << rigol.freq_step / 1e3 << " kHz\n";
-    auto points = static_cast<int>((rigol.stop_freq-rigol.start_freq)/rigol.freq_step);
+    auto points = static_cast<int>(std::round((rigol.stop_freq - rigol.start_freq) / rigol.freq_step)) + 1;
     auto r = RigolDriver();
     r.setup_sweep_for_imp_odmr(rigol.gain,rigol.start_freq,rigol.stop_freq,rigol.freq_step);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
