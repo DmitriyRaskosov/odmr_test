@@ -43,9 +43,9 @@ cd C:\Users\dmitr\Desktop\udp_lab_sim
 .\scripts\spammer_odmr_compare.ps1 -CvOdmrProfile -DstHost 192.168.1.9
 ```
 
-Quick smoke (3 frequencies × 5 repeats): add `-QuickTest` on Windows and point VM `EXPERIMENT_INI` at matching mini ini.
+Quick smoke (3 frequencies × 5 repeats): add `-QuickTest` on Windows (`--fast`) and matching mini ini on VM.
 
-Stop capture with **Ctrl+C** after the spammer finishes.
+Capture stops automatically when all groups from ini are written (or **Ctrl+C**).
 
 Result: `runs/YYYYMMDD_HHMMSS_run/pulses_grouped.txt` — header plus one row per sweep point:
 

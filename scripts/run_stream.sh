@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Production capture: online analyze-stream, pulses_grouped.txt only (no raw ch*.txt).
+# Production capture: one cv_odmr experiment from ini, auto-stop when all groups written.
 #
 # Terminal 1 (VM):
 #   ./scripts/run_stream.sh
 # Terminal 2 (Windows):
 #   scripts/spammer_odmr_compare.ps1 -CvOdmrProfile
-# After spammer finishes, Ctrl+C capture.
+# Capture stops when analyze groups == expected from ini (or Ctrl+C).
 set -euo pipefail
 
 ODMR_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,7 +42,7 @@ trap on_signal INT TERM
 trap finalize_run EXIT
 
 echo "RUN=$RUN"
-echo "Starting stream capture on $IFACE (Ctrl+C when done)..."
+echo "Starting stream capture on $IFACE (stops when ini experiment complete or Ctrl+C)..."
 echo "  output: $RUN/pulses_grouped.txt"
 echo "  experiment ini: $EXPERIMENT_INI"
 

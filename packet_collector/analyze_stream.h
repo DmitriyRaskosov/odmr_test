@@ -36,6 +36,8 @@ void analyze_stream_finish(AnalyzeStream* stream);
 
 unsigned long analyze_stream_groups_written(const AnalyzeStream* stream);
 int analyze_stream_expected_groups(const AnalyzeStream* stream);
+/** Non-zero when expected_groups > 0 and all groups have been written. */
+int analyze_stream_is_complete(const AnalyzeStream* stream);
 unsigned long analyze_stream_pulses_completed(const AnalyzeStream* stream);
 
 size_t analyze_stream_photon_buffer_count(const AnalyzeStream* stream);

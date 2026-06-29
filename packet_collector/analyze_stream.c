@@ -364,6 +364,13 @@ int analyze_stream_expected_groups(const AnalyzeStream* stream) {
     return stream ? stream->config.expected_groups : 0;
 }
 
+int analyze_stream_is_complete(const AnalyzeStream* stream) {
+    if (!stream || stream->config.expected_groups <= 0) {
+        return 0;
+    }
+    return (int)stream->groups_written >= stream->config.expected_groups;
+}
+
 unsigned long analyze_stream_pulses_completed(const AnalyzeStream* stream) {
     return stream ? stream->pulses_completed : 0;
 }

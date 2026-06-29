@@ -387,6 +387,19 @@ typedef struct {
     unsigned long packets_since_flush[MAX_CHANNELS];
 } write_thread_ctx_t;
 
+static void maybe_stop_on_experiment_complete(void) {
+    if (!g_analyzer || !analyze_stream_is_complete(g_analyzer)) {
+        return;
+    }
+    if (keep_running) {
+        fprintf(stderr,
+                "packet_collector: experiment complete (%d groups), stopping capture\n",
+                analyze_stream_expected_groups(g_analyzer));
+        fflush(stderr);
+    }
+    keep_running = 0;
+}
+
 static void process_ordered_packet(void* ctx, int channel, const unsigned char* data, int len) {
     write_thread_ctx_t* wctx = (write_thread_ctx_t*)ctx;
 
@@ -421,6 +434,7 @@ static void process_ordered_packet(void* ctx, int channel, const unsigned char* 
             ts_count,
             offset_ptr
         );
+        maybe_stop_on_experiment_complete();
     }
 
     if (g_capture.record_raw) {
