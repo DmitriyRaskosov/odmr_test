@@ -20,6 +20,27 @@ EXPERIMENT_INI="${EXPERIMENT_INI:-${ODMR_ROOT}/cv_odmr.ini}"
 
 RUN="${ODMR_ROOT}/runs/$(date +%Y%m%d_%H%M%S)_${RUN_LABEL}"
 mkdir -p "$RUN"
+
+stop_capture() {
+    sudo pkill -INT -f "--output-dir ${RUN}" 2>/dev/null || true
+    sleep 1
+    sudo pkill -TERM -f "--output-dir ${RUN}" 2>/dev/null || true
+}
+
+finalize_run() {
+    sudo chown -R "$(id -un):$(id -gn)" "$RUN" 2>/dev/null || true
+}
+
+on_signal() {
+    echo "Stopping capture..." >&2
+    stop_capture
+    finalize_run
+    exit 130
+}
+
+trap on_signal INT TERM
+trap finalize_run EXIT
+
 echo "RUN=$RUN"
 echo "Starting stream capture on $IFACE (Ctrl+C when done)..."
 echo "  output: $RUN/pulses_grouped.txt"
@@ -39,8 +60,17 @@ if [[ -n "${EXPECTED_GROUPS:-}" && "${EXPECTED_GROUPS}" != "0" ]]; then
     echo "  expected_groups override: $EXPECTED_GROUPS"
 fi
 
-sudo "${ODMR_ROOT}/build/packet_capture" "$IFACE" "${CAPTURE_ARGS[@]}"
+set +e
+sudo stdbuf -oL -eL "${ODMR_ROOT}/build/packet_capture" "$IFACE" "${CAPTURE_ARGS[@]}"
+CAPTURE_EXIT=$?
+set -e
 
-sudo chown -R "$(id -un):$(id -gn)" "$RUN"
+finalize_run
+
+if [[ "$CAPTURE_EXIT" -ne 0 && "$CAPTURE_EXIT" -ne 130 ]]; then
+    echo "Capture exited with code $CAPTURE_EXIT" >&2
+    exit "$CAPTURE_EXIT"
+fi
+
 echo "Done. RUN=$RUN"
 wc -l "$RUN/pulses_grouped.txt" 2>/dev/null || true

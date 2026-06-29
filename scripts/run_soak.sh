@@ -3,6 +3,7 @@
 #
 # Terminal 1 (VM) — start BEFORE Windows spammer:
 #   SOAK_DURATION_SEC=3600 RUN_LABEL=soak_1h bash scripts/run_soak.sh
+#   tail -f runs/.../soak.log   # optional second terminal
 #
 # Terminal 2 (Windows):
 #   .\scripts\spammer_odmr_compare.ps1 -SoakOdmrPair -DurationSec 3600 -DstHost 192.168.1.9
@@ -27,10 +28,31 @@ RUN="${ODMR_ROOT}/runs/$(date +%Y%m%d_%H%M%S)_${RUN_LABEL}"
 mkdir -p "$RUN"
 SOAK_LOG="${RUN}/soak.log"
 
+stop_capture() {
+    sudo pkill -INT -f "--output-dir ${RUN}" 2>/dev/null || true
+    sleep 1
+    sudo pkill -TERM -f "--output-dir ${RUN}" 2>/dev/null || true
+}
+
+finalize_run() {
+    sudo chown -R "$(id -un):$(id -gn)" "$RUN" 2>/dev/null || true
+}
+
+on_signal() {
+    echo "Stopping capture..." >&2
+    stop_capture
+    finalize_run
+    exit 130
+}
+
+trap on_signal INT TERM
+trap finalize_run EXIT
+
 echo "RUN=$RUN"
 echo "Soak capture on $IFACE for ${SOAK_DURATION_SEC}s (log: soak.log)"
 echo "  output: $RUN/pulses_grouped.txt"
 echo "  experiment ini (repeats only): $EXPERIMENT_INI"
+echo "  monitor: tail -f $SOAK_LOG"
 
 CAPTURE_ARGS=(
     --soak
@@ -42,13 +64,15 @@ if [[ -n "${REPEATS_PER_FREQ:-}" ]]; then
     echo "  repeats_per_freq override: $REPEATS_PER_FREQ"
 fi
 
-set -o pipefail
-timeout --signal=INT "${SOAK_DURATION_SEC}" \
-    sudo "${ODMR_ROOT}/build/packet_capture" "$IFACE" "${CAPTURE_ARGS[@]}" \
-    2>&1 | tee "$SOAK_LOG"
-CAPTURE_EXIT=${PIPESTATUS[0]}
+# timeout inside sudo so SIGINT reaches packet_capture directly
+set +e
+sudo timeout --signal=INT "${SOAK_DURATION_SEC}" \
+    stdbuf -oL -eL "${ODMR_ROOT}/build/packet_capture" "$IFACE" "${CAPTURE_ARGS[@]}" \
+    >>"$SOAK_LOG" 2>&1
+CAPTURE_EXIT=$?
+set -e
 
-sudo chown -R "$(id -un):$(id -gn)" "$RUN"
+finalize_run
 
 echo ""
 echo "=== soak summary (${RUN_LABEL}, ${SOAK_DURATION_SEC}s) ==="

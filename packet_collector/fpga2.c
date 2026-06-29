@@ -567,10 +567,10 @@ void* capture_thread(void* arg) {
     unsigned long frames_since_stats = 0;
     unsigned long frames_since_periodic = 0;
 
-    while (1) {
+    while (keep_running) {
         int processed = 0;
 
-        while (1) {
+        while (keep_running) {
             struct tpacket_hdr *hdr =
                 (struct tpacket_hdr*)((char*)ring + idx * FRAME_SIZE);
 
@@ -642,7 +642,7 @@ void* capture_thread(void* arg) {
             }
         }
 
-        if (!keep_running && !processed) {
+        if (!keep_running) {
             break;
         }
 
