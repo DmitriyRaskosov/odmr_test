@@ -156,10 +156,16 @@ void packet_reorder_configure_analyze(PacketReorder* ro, int photon_channel, int
     if (photon_channel >= 0 && photon_channel < PACKET_REORDER_MAX_CHANNELS) {
         ro->channels[photon_channel].enabled = 1;
         ro->channels[photon_channel].counter_step = 2;
+        /* Shared counter starts at 0; photon channel gets the first even value. */
+        ro->channels[photon_channel].next_expected = 0;
+        ro->channels[photon_channel].have_next = 1;
     }
     if (trigger_channel >= 0 && trigger_channel < PACKET_REORDER_MAX_CHANNELS) {
         ro->channels[trigger_channel].enabled = 1;
         ro->channels[trigger_channel].counter_step = 2;
+        /* Trigger channel gets the first odd value in each ch0+ch2 pair. */
+        ro->channels[trigger_channel].next_expected = 1;
+        ro->channels[trigger_channel].have_next = 1;
     }
 }
 
@@ -184,8 +190,12 @@ int packet_reorder_submit(
     }
 
     if (!ch->have_next) {
-        ch->next_expected = counter;
-        ch->have_next = 1;
+        fprintf(stderr,
+                "packet_reorder: ch=%d not primed (counter=%u)\n",
+                channel,
+                (unsigned)counter);
+        free(data);
+        return -1;
     }
 
     if (counter == ch->next_expected) {
